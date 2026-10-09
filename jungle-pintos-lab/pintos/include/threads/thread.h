@@ -71,19 +71,14 @@ typedef int tid_t;
  *       지역 변수로 할당해서는 안 됩니다. 대신 malloc()이나
  *       palloc_get_page()를 사용한 동적 할당을 이용하십시오.
  *
- * 이러한 문제들이 발생했을 때 나타나는 첫 번째 증상은 아마도
- * thread_current()에서의 assertion 실패일 것입니다. 이 함수는
- * 현재 실행 중인 스레드의 `struct thread'에 있는 `magic' 멤버가
- * THREAD_MAGIC으로 설정되어 있는지 확인합니다. 스택 오버플로우가
+ * 이러한 문제들이 발생했을 때 나타나는 첫 번째 증상은 아마도 thread_current()에서의 assertion 실패일 것입니다. 이 함수는
+ * 현재 실행 중인 스레드의 `struct thread'에 있는 `magic' 멤버가 * THREAD_MAGIC으로 설정되어 있는지 확인합니다. 스택 오버플로우가
  * 발생하면 대개 이 값이 변경되어 assertion 실패를 유발합니다. */
-/* `elem' 멤버는 두 가지 용도로 사용됩니다.
- * 실행 큐(run queue, thread.c)의 요소가 될 수도 있고,
- * 세마포어 대기 목록(semaphore wait list, synch.c)의 요소가
- * 될 수도 있습니다. 이 두 가지 용도로 사용 가능한 이유는
- * 이들이 상호 배타적(mutually exclusive)이기 때문입니다.
- * 즉, 준비(ready) 상태의 스레드만 실행 큐에 존재하고,
- * 반면 차단(blocked) 상태의 스레드만 세마포어 대기 목록에
- * 존재하기 때문입니다. */
+
+/* `elem' 멤버는 두 가지 용도로 사용됩니다. 실행 큐(run queue, thread.c)의 요소가 될 수도 있고,
+ * 세마포어 대기 목록(semaphore wait list, synch.c)의 요소가 * 될 수도 있습니다. 이 두 가지 용도로 사용 가능한 이유는
+ * 이들이 상호 배타적(mutually exclusive)이기 때문입니다. * 즉, 준비(ready) 상태의 스레드만 실행 큐에 존재하고,
+ * 반면 차단(blocked) 상태의 스레드만 세마포어 대기 목록에 존재하기 때문입니다. */
  
 struct thread {
 	/*thread.c가 소유함. */
@@ -95,7 +90,7 @@ struct thread {
 	/* thread.c와 synch.c 간에 공유됩니다. */
 	struct list_elem elem;             		/*목록 요소. */
 
-//------------------------------------------------------------------------------------------------------------------------------------------------------
+//1차---------------------------------------------------------------------------------------------------------------------------------------------------
 	/* Alarm clock: 일어날 시각 (timer tick 단위) */
 	int64_t wakeup_tick;					 // 스레드가 깨어나야 하는 시각을 타이머 틱 단위로 저장
 //------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -115,9 +110,9 @@ struct thread {
 
 };
 
-/* If false (default), use round-robin scheduler.
-   If true, use multi-level feedback queue scheduler.
-   Controlled by kernel command-line option "-o mlfqs". */
+/* false(기본값)인 경우 라운드 로빈 스케줄러를 사용합니다. 
+true인 경우 다단계 피드백 큐 스케줄러를 사용합니다. 
+커널 명령줄 옵션 "-o mlfqs"로 제어됩니다. */
 extern bool thread_mlfqs;
 
 void thread_init (void);
@@ -131,6 +126,10 @@ tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
 void thread_block (void);
 void thread_unblock (struct thread *);
+//1차---------------------------------------------------------------------------------------------------------------------------------------------------
+void sleep_put 		(int64_t);
+void sleep_wakeup 	(int64_t);
+//------------------------------------------------------------------------------------------------------------------------------------------------------
 
 struct thread *thread_current (void);
 tid_t thread_tid (void);

@@ -24,9 +24,12 @@
    Do not modify this value. */
 #define THREAD_BASIC 0xd42df210
 
-/* List of processes in THREAD_READY state, that is, processes
-   that are ready to run but not actually running. */
+/* THREAD_READY 상태인 프로세스들의 목록, 즉 실행 준비는 되었으나
+실제로 실행 중이지는 않은 프로세스들. */
 static struct list ready_list;
+//1차---------------------------------------------------------------------------------------------------------------------------------------------------
+static struct list sleep_list;
+//------------------------------------------------------------------------------------------------------------------------------------------------------
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -38,7 +41,6 @@ static struct thread *initial_thread;
 static struct lock tid_lock;
 
 /* Thread destruction requests */
-//ready_list
 static struct list destruction_req;
 
 /* Statistics. */
@@ -107,6 +109,9 @@ thread_init (void) {
 	/* 전역 스레드 컨텍스트 초기화 */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	//1차---------------------------------------------------------------------------------------------------------------------------------------------------
+	list_init (&sleep_list);
+	//------------------------------------------------------------------------------------------------------------------------------------------------------
 	list_init (&destruction_req);
 
 	/* 실행 중인 스레드를 위한 스레드 구조체를 설정합니다. */
@@ -240,6 +245,36 @@ thread_unblock (struct thread *t) {
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
+
+//1차----------------------------------------------------------------------------------------------------------------------------------
+void 
+sleep_put(int64_t absolute_tick)			// 지정한 시각까지 현재 스레드를 잠들게 하는 함수
+{
+    struct thread *curr 	= thread_current();		// 현재 실행 중인 스레드의 정보를 가져옴  
+    enum intr_level old_level;			 	// 인터럽트 상태를 저장할 변수
+    old_level 			= intr_disable();		// 현재 인터럽트 상태를 저장하고 인터럽트를 비활성화
+    curr->wakeup_tick 	= absolute_tick;	 	// 현재 스레드의 멤버 변수에 깨어날 시각을 저장
+    list_push_back(&sleep_list, &curr->elem);		// 현재 스레드를 잠든 스레드 목록의 맨 뒤에 추가
+    thread_block();						// 현재 스레드를 BLOCKED 상태로 전환
+    intr_set_level(old_level);				// 이전 인터럽트 상태로 복원
+}
+
+void
+sleep_wakeup (int64_t current_tick) 
+{
+	struct list_elem *e = list_begin(&sleep_list);  	// 잠든 스레드 목록의 첫 번째 요소를 가져옴
+	while (e != list_end(&sleep_list)) {             	// 목록의 끝에 도달할 때까지 반복
+		struct thread *t = list_entry(e, struct thread, elem);  // 리스트 요소를 포함하는 스레드 구조체를 가져옴
+
+		if (t->wakeup_tick <= current_tick) {       	// 깨어날 시간이 되었는지 확인
+			e = list_remove(e);                     	// 목록에서 제거하고 다음 요소를 가리킴
+			thread_unblock(t);                       	// 스레드를 실행 가능한 상태로 변경
+		} else {	
+			e = list_next(e);                        	// 다음 요소로 이동
+		}
+	}
+}
+//------------------------------------------------------------------------------------------------------------------------------------------------------
 
 /* Returns the name of the running thread. */
 const char *
@@ -406,11 +441,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->magic = THREAD_MAGIC;
 }
 
-/* Chooses and returns the next thread to be scheduled.  Should
-   return a thread from the run queue, unless the run queue is
-   empty.  (If the running thread can continue running, then it
-   will be in the run queue.)  If the run queue is empty, return
-   idle_thread. */
+/* 다음에 스케줄링할 스레드를 선택하여 반환합니다. 
+실행 큐(run queue)가 비어 있지 않다면 실행 큐에서 스레드를 반환해야 합니다. 
+(현재 실행 중인 스레드가 계속 실행될 수 있는 상태라면,
+해당 스레드도 실행 큐에 포함되어 있을 것입니다.)
+실행 큐가 비어 있다면 idle_thread를 반환합니다. */
 static struct thread *
 next_thread_to_run (void) {
 	if (list_empty (&ready_list))
@@ -553,13 +588,10 @@ schedule (void) {
 #endif
 
 	if (curr != next) {
-		/* If the thread we switched from is dying, destroy its struct
-		   thread. This must happen late so that thread_exit() doesn't
-		   pull out the rug under itself.
-		   We just queuing the page free reqeust here because the page is
-		   currently used by the stack.
-		   The real destruction logic will be called at the beginning of the
-		   schedule(). */
+/* 전환하기 전의 스레드가 종료되는 중이라면 해당 스레드의 구조체(struct thread)를 파괴해야 합니다. 
+단, thread_exit()가 실행 도중 자신의 기반을 무너뜨리는 상황을 피하기 위해 이 작업은 마지막 단계에서 수행되어야 합니다. 
+현재 해당 페이지가 스택으로 사용 중이므로, 여기서는 페이지 해제 요청을 큐에 넣기만 합니다. 
+실제 파괴 로직은 schedule()의 시작 부분에서 호출될 것입니다. */
 		if (curr && curr->status == THREAD_DYING && curr != initial_thread) {
 			ASSERT (curr != next);
 			list_push_back (&destruction_req, &curr->elem);

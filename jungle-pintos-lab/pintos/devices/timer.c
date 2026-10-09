@@ -97,16 +97,17 @@ timer_elapsed (int64_t then) {
 // 		thread_yield ();					// thread_yield() = 현재 스레드가 CPU 사용을 양보하여 다른 스레드가 실행될 기회를 주는 함수
 // }
 
-void										
-timer_sleep (int64_t ticks) {				
-	int64_t start = timer_ticks ();			// timer tick 값을 start 변수에 저장
-
-	ASSERT (intr_get_level () == INTR_ON);	// 현재 CPU가 인터럽트 신호를 받을 수 있다면
-	
-	// 호출한 스레드의 실행을 현시점에서 기다려야하는 타이머 틱의 개수만큼 시간이 흐름때까지 중단
-	while (timer_elapsed (start) < ticks)	// start의 틱 개수가 tick보다 작은동안 반복
-		//
+//1차---------------------------------------------------------------------------------------------------------------------------------------------------
+// 지정한 타이머 틱만큼 현재 스레드를 잠들게 하는 함수
+void timer_sleep(int64_t ticks)
+{
+    int64_t start = timer_ticks();			// 현재 타이머 틱 값을 start 변수에 저장
+    ASSERT(intr_get_level() == INTR_ON);	// 현재 인터럽트가 활성화되어 있는지 확인
+    if (ticks <= 0)							// 대기할 틱이 0 이하이면 아무것도 하지 않고 반환
+        return;					
+    sleep_put(start + ticks);				// 현재 시각에 대기할 틱 수를 더해 깨어날 시각을 계산하고 스레드를 잠들게 함
 }
+//------------------------------------------------------------------------------------------------------------------------------------------------------
 
 /* Suspends execution for approximately MS milliseconds. */
 void
@@ -132,10 +133,13 @@ timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
 
-/* Timer interrupt handler. */
+/* 타이머 인터럽트 핸들러. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
+//1차---------------------------------------------------------------------------------------------------------------------------------------------------
+	sleep_wakeup (ticks);
+//------------------------------------------------------------------------------------------------------------------------------------------------------
 	thread_tick ();
 }
 
